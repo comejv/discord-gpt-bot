@@ -5,7 +5,7 @@ Discord bot that uses the GPT-3 API to answer questions.
 ## Setup
 
 1. Create a Discord bot and invite it to your server.
-2. Create a `.env` file with the following contents:
+2. Remove `.dist` from `.env.dist` and fill in the values.
 
 ```json
 {
