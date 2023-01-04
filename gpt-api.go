@@ -29,22 +29,20 @@ func GptAnswer(reply string, question string, name string) (string, error) {
 
 	// Create the prompt
 	if reply == "" {
-		prompt = "Tu es un bot discord qui répond de manière condescendante aux questions de " +
-			name + "." +
+		prompt = "Tu es un bot discord qui répond de manière condescendante aux questions." +
 			"\nTu n'hésites pas à te plaindre quand il manque de politesse." +
-			"\nQuestion : " +
+			"\nQuestion de " + name + ": " +
 			question +
 			"\nRéponse condescendante : "
 
 	} else {
 
-		prompt = "Tu es un bot discord qui répond de manière condescendante au questions de " +
-			name + "." +
+		prompt = "Tu es un bot discord qui répond de manière condescendante au questions." +
 			"\nTu n'hésites pas te plaindre quand il manque de politesse." +
 			"\nMessage : [...]" +
 			"\nRéponse condescendante : " +
 			reply +
-			"\nMessage : " +
+			"\nMessage de " + name + ": " +
 			question +
 			"\nRéponse condescendante : "
 	}
