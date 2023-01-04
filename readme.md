@@ -18,3 +18,5 @@ Discord bot that uses the GPT-3 API to answer questions.
 4. Start the bot with `./bin/gptbot`.
 
 The bot will answer any message that ends with a question mark or are replys to its own messages.
+
+Note: The bot is currently set to be condescending. You can change this by changing the prompt in [gpt-api.go](gpt-api.go)
