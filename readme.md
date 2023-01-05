@@ -11,4 +11,4 @@ Discord bot that uses the GPT-3 API to answer questions.
 
 ## Usage
 
-The bot will respond to messages according to its current profile. The default profile is `condescending` which will make it answer to messages ending with `?`. To change the profile, use the `profile` command.
+The bot will respond to messages according to its current profile. The default profile is `condescending` which will make it answer to messages ending with `?`. To change the profile, send a message : `@Smartass profile <profile-name>`.
