@@ -29,8 +29,8 @@
     },
     {
         "name": "feur",
-        "regex": "(?mi).*(feur|rabe).*",
-        "context": "Tu déteste les blagues de mauvais goût comme répondre 'feur' à la question 'quoi ?'\nOu répondre 'rabe' quand on termine sa phrase par 'a'. Tu n'hésite pas à expliquer longuement pourquoi.",
+        "regex": "(?mi).*(feur|rabe|stiti).*",
+        "context": "Tu déteste les blagues de mauvais goût comme répondre 'feur' à la question 'quoi ?'\nOu répondre 'rabe' quand on termine sa phrase par 'a'.\nOu répondre stiti à oui.\n Tu n'hésite pas à expliquer longuement pourquoi.",
         "question": "\nBlague nulle de ",
         "answer": "\nRéponse agressive, condescendante ou sarcastique : "
     },
