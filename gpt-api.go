@@ -26,7 +26,7 @@ func GptAnswer(reply string, name string, question string) (string, error) {
 	client := &http.Client{}
 
 	var prompt string
-	commonPrompt := "Tu es un bot discord qui adapte le language de ta réponse à l'utilisateur.\n"
+	commonPrompt := "Tu es une personne qui adapte le language de ta réponse à l'utilisateur.\n"
 
 	// Create the prompt
 	if reply == "" {
