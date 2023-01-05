@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
@@ -25,6 +26,7 @@ type stats struct {
 	Questions  int
 	Answers    int
 	Tokens     int
+	Profiles   int
 }
 
 type profile struct {
@@ -35,12 +37,17 @@ type profile struct {
 	Answer   string `json:"answer"`
 }
 
+type last struct {
+	Guild 	string
+	Channel string
+}
+
 // Global variables
 var Env env_var
 var Obs stats
 var Profiles []profile
 var CurrentProfile profile
-var CurrentChannel string
+var LastGuildChan last
 
 func main() {
 	// Load environment variables
@@ -118,8 +125,13 @@ func main() {
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
 
-	// Send a goodbye message in the last channel the bot was active in
-	_, err = dg.ChannelMessageSend(CurrentChannel, "Bot shutting down for maintenance!")
+	// Reset username and send a goodbye message in the last channel the bot was active in
+	err = (*dg).GuildMemberNickname(LastGuildChan.Guild, "@me", "")
+	if err != nil {
+		dg.ChannelMessageSend(LastGuildChan.Channel, "Error resetting nickname! Please reset it manually. :(")
+		fmt.Println("error changing nickname", err)
+	}
+	_, err = dg.ChannelMessageSend(LastGuildChan.Channel, "Bot shutting down for maintenance!")
 	if err != nil {
 		fmt.Println("error sending goodbye message:", err)
 	}
@@ -138,15 +150,20 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 
 	} else if regexp.MustCompile(`^<@!?` + s.State.User.ID + `>`).MatchString(m.Content) {
-		// If bot is tagged at the beginning of the message, update the profile
+		// If bot is tagged at the beginning of the message, do command
+
+		// profile command
 		if regexp.MustCompile(`(?mi)^.*profile`).MatchString(m.Content) {
 			// Find the profile name
 			needle := regexp.MustCompile(`(?i)profile\s+(?P<name>\w+)`).FindStringSubmatch(m.Content)
+			changed := false
 
 			// Find the corresponding profile
 			for _, profile := range Profiles {
 				if profile.Name == needle[1] {
 					CurrentProfile = profile
+					changed = true
+					profileChanged()
 					err = (*s).GuildMemberNickname(m.GuildID, "@me", profile.Name)
 					if err != nil {
 						fmt.Println("error changing nickname", err)
@@ -156,15 +173,62 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				}
 			}
 
-			// Send a message to confirm the profile change
-			_, err = s.ChannelMessageSend(m.ChannelID, "Profile changed to "+CurrentProfile.Name)
-			if err != nil {
-				fmt.Println("error sending profile change message:", err)
+			// Send a message to confirm the profile change if no errors occured
+			if changed {
+				_, err = s.ChannelMessageSend(m.ChannelID, "Profile changed to "+CurrentProfile.Name)
+				if err != nil {
+					fmt.Println("error sending profile change message:", err)
+				}
+				answerSent()
+			} else {
+				_, err = s.ChannelMessageSend(m.ChannelID, "Profile not found")
+				if err != nil {
+					fmt.Println("error sending profile not found message:", err)
+				}
 			}
+
+			return
 		}
 
-	} else if m.Message.ReferencedMessage != nil && m.Message.ReferencedMessage.Author.ID == s.State.User.ID {
-		// If the message is a reply to the bot, send a completion
+		// stats command
+		if regexp.MustCompile(`(?i)stats$`).MatchString(m.Content) {
+			// Create a stat message
+			msg := "```"
+			msg += "Messages scanned: " + strconv.Itoa(Obs.MsgScanned)
+			msg += "\nMessages sent: " + strconv.Itoa(Obs.Answers)
+			msg += "```"
+			// Send a message with the stats
+			_, err = s.ChannelMessageSend(m.ChannelID, msg)
+			if err != nil {
+				fmt.Println("error sending stats message:", err)
+			}
+			return
+		}
+
+		// help command
+		if regexp.MustCompile(`(?i)help$`).MatchString(m.Content) {
+			// Create a help message
+			msg := "```"
+			msg += "Commands:"
+			msg += "\n@Smartass profile <name>: change the profile"
+			msg += "\n@Smartass stats: show statistics"
+			msg += "\n@Smartass help: show this message"
+			msg += "\n\nProfiles:"
+			for _, profile := range Profiles {
+				msg += "\n- " + profile.Name + ": " + profile.Regex
+			}
+			msg += "```"
+			// Send a message with the help
+			_, err = s.ChannelMessageSend(m.ChannelID, msg)
+			if err != nil {
+				fmt.Println("error sending help message:", err)
+			}
+			return
+		}
+	}
+
+	// If the message is a reply to the bot, send a completion
+	if m.Message.ReferencedMessage != nil && m.Message.ReferencedMessage.Author.ID == s.State.User.ID {
 		originalMessage, err := s.ChannelMessage(m.Message.ChannelID, m.Message.ReferencedMessage.ID)
 		if err != nil {
 			fmt.Println("error getting original message:", err)
@@ -202,12 +266,9 @@ func send_gpt_completion(s *discordgo.Session, m *discordgo.MessageCreate, reply
 		return err
 	}
 
-	if Env.Log {
-		fmt.Println("Message sent in ", m.GuildID, ":", m.ChannelID, ":", m.ID)
-	}
-
 	// Update the current channel
-	CurrentChannel = m.ChannelID
+	LastGuildChan.Guild = m.GuildID
+	LastGuildChan.Channel = m.ChannelID
 
 	// Update stats
 	answerSent()
@@ -241,6 +302,13 @@ func tokenUsed(amount int) {
 	Obs.Tokens += amount
 	if Env.Log {
 		fmt.Println(amount, " token used")
+	}
+}
+
+func profileChanged() {
+	Obs.Profiles++
+	if Env.Log {
+		fmt.Println("Profile changed")
 	}
 }
 
