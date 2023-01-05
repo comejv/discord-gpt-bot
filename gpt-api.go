@@ -21,39 +21,30 @@ type gptQuery struct {
 	Stop        string  `json:"stop"`
 }
 
-func GptAnswer(reply string, question string, name string) (string, error) {
+func GptAnswer(reply string, name string, question string) (string, error) {
 	// Create a new HTTP client
 	client := &http.Client{}
 
 	var prompt string
+	commonPrompt := "Tu es un bot discord qui adapte le language de ta réponse à l'utilisateur.\n"
 
 	// Create the prompt
 	if reply == "" {
-		prompt = "Tu es un bot discord qui répond de manière condescendante aux questions." +
-			"\nTu n'hésites pas à te plaindre quand il manque de politesse." +
-			"\nQuestion de " + name + ": " +
-			question +
-			"\nRéponse condescendante : "
-
+		prompt = commonPrompt + CurrentProfile.Context + CurrentProfile.Question + name + " : " + question + CurrentProfile.Answer
 	} else {
 
-		prompt = "Tu es un bot discord qui répond de manière condescendante au questions." +
-			"\nTu n'hésites pas te plaindre quand il manque de politesse." +
-			"\nMessage : [...]" +
-			"\nRéponse condescendante : " +
-			reply +
-			"\nMessage de " + name + ": " +
-			question +
-			"\nRéponse condescendante : "
+		prompt = commonPrompt + CurrentProfile.Context + "\nMessage : [...]" +
+			CurrentProfile.Answer + reply + CurrentProfile.Question + name + ": " +
+			question + CurrentProfile.Question + CurrentProfile.Answer
 	}
 
 	// Create the query
 	qbytes, _ := json.Marshal(gptQuery{
 		Model:       "text-davinci-003",
 		Prompt:      prompt,
-		Max_tokens:  100,
+		Max_tokens:  200,
 		Temperature: 0.5,
-		Stop:        "Question : ",
+		Stop:        CurrentProfile.Question,
 	})
 
 	// Create a new POST request
@@ -64,7 +55,7 @@ func GptAnswer(reply string, question string, name string) (string, error) {
 	}
 
 	// Set the Authorization header
-	req.Header.Set("Authorization", "Bearer " + env.GptApiKey)
+	req.Header.Set("Authorization", "Bearer "+Env.GptApiKey)
 
 	// Set the Content-Type header
 	req.Header.Set("Content-Type", "application/json")
