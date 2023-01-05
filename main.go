@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"regexp"
 	"syscall"
 
@@ -39,10 +40,18 @@ var Env env_var
 var Obs stats
 var Profiles []profile
 var CurrentProfile profile
+var CurrentChannel string
 
 func main() {
 	// Load environment variables
-	file, err := os.Open(".env")
+	execPath, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+
+	baseDir := filepath.Dir(filepath.Dir(execPath)) + "/"
+
+	file, err := os.Open(baseDir + ".env")
 	if err != nil {
 		fmt.Println("error opening config file")
 		panic(err)
@@ -62,7 +71,7 @@ func main() {
 	}
 
 	// Load profiles
-	file, err = os.Open("profiles.json")
+	file, err = os.Open(baseDir + "data/profiles.json")
 	if err != nil {
 		fmt.Println("error opening profiles file")
 		panic(err)
@@ -109,6 +118,12 @@ func main() {
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
 
+	// Send a goodbye message in the last channel the bot was active in
+	_, err = dg.ChannelMessageSend(CurrentChannel, "Bot shutting down for maintenance!")
+	if err != nil {
+		fmt.Println("error sending goodbye message:", err)
+	}
+
 	// Cleanly close down the Discord session.
 	dg.Close()
 }
@@ -124,42 +139,28 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	} else if regexp.MustCompile(`^<@!?` + s.State.User.ID + `>`).MatchString(m.Content) {
 		// If bot is tagged at the beginning of the message, update the profile
-		if regexp.MustCompile(`(?mi).*profile condescending$`).MatchString(m.Content) {
-			CurrentProfile = Profiles[0]
-			err = (*s).GuildMemberNickname(m.GuildID, "@me", "Condescending Bot")
-			fmt.Println("profile changed to condescending")
-		} else if regexp.MustCompile(`(?mi)profile loving$`).MatchString(m.Content) {
-			CurrentProfile = Profiles[1]
-			err = (*s).GuildMemberNickname(m.GuildID, "@me", "Loving Bot")
-			fmt.Println("profile changed to loving")
-		} else if regexp.MustCompile(`(?mi)profile angry$`).MatchString(m.Content) {
-			CurrentProfile = Profiles[2]
-			err = (*s).GuildMemberNickname(m.GuildID, "@me", "Angry Bot")
-			fmt.Println("profile changed to angry")
-		} else if regexp.MustCompile(`(?mi)profile sad$`).MatchString(m.Content) {
-			CurrentProfile = Profiles[3]
-			err = (*s).GuildMemberNickname(m.GuildID, "@me", "Sad Bot")
-			fmt.Println("profile changed to sad")
-		} else if regexp.MustCompile(`(?mi)profile feur$`).MatchString(m.Content) {
-			CurrentProfile = Profiles[4]
-			err = (*s).GuildMemberNickname(m.GuildID, "@me", "Anti-feur Bot")
-			fmt.Println("profile changed to feur")
-		} else if regexp.MustCompile(`(?mi)profile pirate$`).MatchString(m.Content) {
-			CurrentProfile = Profiles[5]
-			err = (*s).GuildMemberNickname(m.GuildID, "@me", "Pirate Bot")
-			fmt.Println("profile changed to pirate")
-		} else if regexp.MustCompile(`(?mi)profile gamer$`).MatchString(m.Content) {
-			CurrentProfile = Profiles[6]
-			err = (*s).GuildMemberNickname(m.GuildID, "@me", "Gamer Bot")
-			fmt.Println("profile changed to gamer")
-		}
-		if err != nil {
-			fmt.Println("error changing nickname", err)
-		}
-		// Send a message to confirm the profile change
-		_, err = s.ChannelMessageSend(m.ChannelID, "Profile changed to "+CurrentProfile.Name)
-		if err != nil {
-			fmt.Println("error sending profile change message:", err)
+		if regexp.MustCompile(`(?mi)^.*profile`).MatchString(m.Content) {
+			// Find the profile name
+			needle := regexp.MustCompile(`(?i)profile\s+(?P<name>\w+)`).FindStringSubmatch(m.Content)
+
+			// Find the corresponding profile
+			for _, profile := range Profiles {
+				if profile.Name == needle[1] {
+					CurrentProfile = profile
+					err = (*s).GuildMemberNickname(m.GuildID, "@me", profile.Name)
+					if err != nil {
+						fmt.Println("error changing nickname", err)
+					}
+					fmt.Println("profile changed to", profile.Name)
+					break
+				}
+			}
+
+			// Send a message to confirm the profile change
+			_, err = s.ChannelMessageSend(m.ChannelID, "Profile changed to "+CurrentProfile.Name)
+			if err != nil {
+				fmt.Println("error sending profile change message:", err)
+			}
 		}
 
 	} else if m.Message.ReferencedMessage != nil && m.Message.ReferencedMessage.Author.ID == s.State.User.ID {
@@ -190,14 +191,12 @@ func send_gpt_completion(s *discordgo.Session, m *discordgo.MessageCreate, reply
 	var err error
 
 	answer, err = GptAnswer(reply, m.Author.Username, m.Content)
-
 	if err != nil {
 		fmt.Println("error getting completion:", err)
 		return err
 	}
 
 	_, err = s.ChannelMessageSendReply(m.ChannelID, answer, (*m).Reference())
-
 	if err != nil {
 		fmt.Println("error sending message", err)
 		return err
@@ -206,6 +205,11 @@ func send_gpt_completion(s *discordgo.Session, m *discordgo.MessageCreate, reply
 	if Env.Log {
 		fmt.Println("Message sent in ", m.GuildID, ":", m.ChannelID, ":", m.ID)
 	}
+
+	// Update the current channel
+	CurrentChannel = m.ChannelID
+
+	// Update stats
 	answerSent()
 
 	return nil
