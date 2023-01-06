@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -38,7 +39,7 @@ type profile struct {
 }
 
 type last struct {
-	Guild 	string
+	Guild   string
 	Channel string
 }
 
@@ -48,6 +49,7 @@ var Obs stats
 var Profiles []profile
 var CurrentProfile profile
 var LastGuildChan last
+var startTime time.Time
 
 func main() {
 	// Load environment variables
@@ -117,7 +119,8 @@ func main() {
 		fmt.Println("error opening connection")
 		panic(err)
 	}
-	defer printStats()
+	// Get current time
+	startTime = time.Now()
 
 	// Wait here until CTRL-C or other term signal is received.
 	fmt.Println("Bot is now running. Press CTRL-C to exit.")
@@ -135,9 +138,16 @@ func main() {
 	if err != nil {
 		fmt.Println("error sending goodbye message:", err)
 	}
+	_, err = dg.ChannelMessageSend(LastGuildChan.Channel, "Stats :\n```\n"+getStats(startTime)+"\n```")
+	if err != nil {
+		fmt.Println("error sending stats:", err)
+	}
 
 	// Cleanly close down the Discord session.
 	dg.Close()
+
+	// Print stats
+	fmt.Print(getStats(startTime))
 }
 
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -147,6 +157,9 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	// Ignore all messages created by the bot itself
 	if m.Author.ID == s.State.User.ID {
+		// Update the current channel
+		LastGuildChan.Guild = m.GuildID
+		LastGuildChan.Channel = m.ChannelID
 		return
 
 	} else if regexp.MustCompile(`^<@!?` + s.State.User.ID + `>`).MatchString(m.Content) {
@@ -193,10 +206,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		// stats command
 		if regexp.MustCompile(`(?i)stats$`).MatchString(m.Content) {
 			// Create a stat message
-			msg := "```"
-			msg += "Messages scanned: " + strconv.Itoa(Obs.MsgScanned)
-			msg += "\nMessages sent: " + strconv.Itoa(Obs.Answers)
-			msg += "```"
+			msg := "```\n" + getStats(startTime) + "\n```"
 			// Send a message with the stats
 			_, err = s.ChannelMessageSend(m.ChannelID, msg)
 			if err != nil {
@@ -266,10 +276,6 @@ func send_gpt_completion(s *discordgo.Session, m *discordgo.MessageCreate, reply
 		return err
 	}
 
-	// Update the current channel
-	LastGuildChan.Guild = m.GuildID
-	LastGuildChan.Channel = m.ChannelID
-
 	// Update stats
 	answerSent()
 
@@ -312,10 +318,13 @@ func profileChanged() {
 	}
 }
 
-func printStats() {
-	fmt.Println("\n======================\nStats:")
-	fmt.Println("Messages scanned:", Obs.MsgScanned)
-	fmt.Println("Questions asked:", Obs.Questions)
-	fmt.Println("Answers sent:", Obs.Answers)
-	fmt.Println("Tokens used:", Obs.Tokens)
+func getStats(t time.Time) string {
+	msg := "Uptime : " + time.Since(t).Round(time.Second).String()
+	msg += "\nMessages scanned: " + strconv.Itoa(Obs.MsgScanned)
+	msg += "\nQuestions asked: " + strconv.Itoa(Obs.Questions)
+	msg += "\nAnswers sent: " + strconv.Itoa(Obs.Answers)
+	msg += "\nTokens used: " + strconv.Itoa(Obs.Tokens)
+	msg += "\nProfiles change: " + strconv.Itoa(Obs.Profiles)
+	msg += "\n"
+	return msg
 }
