@@ -5,7 +5,8 @@ name: Go
 
 on:
   push:
-    branches: [ "master" ]
+    paths:
+      - '*.go'
 
 jobs:
 
@@ -27,3 +28,25 @@ jobs:
       with:
         name: gpt-bot
         path: ./gpt-bot
+
+    - name: release
+      uses: actions/create-release@v1
+      id: create_release
+      with:
+        draft: false
+        prerelease: false
+        release_name: ${{ steps.version.outputs.version }}
+        tag_name: ${{ github.ref }}
+        body_path: readme.md
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+
+    - name: upload linux artifact
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./gpt-bot
+        asset_name: gpt-bot
+        asset_content_type: application/octet-stream
