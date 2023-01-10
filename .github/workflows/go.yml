@@ -4,7 +4,7 @@
 name: Go
 
 on:
-  workflowdispatch: {}
+  workflow_dispatch: {}
   push:
     paths:
       - '*.go'
