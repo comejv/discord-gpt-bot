@@ -5,9 +5,11 @@ name: Go
 
 on:
   workflow_dispatch: {}
+
   push:
     paths:
       - '*.go'
+      if: ${{ contains(github.event.head_commit.message, 'release') }}
 
 jobs:
 
@@ -34,10 +36,10 @@ jobs:
       uses: actions/create-release@v1
       id: create_release
       with:
-        draft: false
+        draft: true
         prerelease: false
         release_name: ${{ steps.version.outputs.version }}
-        tag_name: ${{ contains(github.event.head_commit.message, '[commit var]') }}
+        tag_name: 1.x
         body_path: readme.md
       env:
         GITHUB_TOKEN: ${{ github.token }}
