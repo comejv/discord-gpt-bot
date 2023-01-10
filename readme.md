@@ -1,4 +1,4 @@
-# Go GPT Discord bot
+# Go GPT Discord bot [![Go](https://github.com/comejv/discord-gpt-bot/actions/workflows/go.yml/badge.svg)](https://github.com/comejv/discord-gpt-bot/actions/workflows/go.yml)
 
 Discord bot that uses the GPT-3 API to answer questions.
 
