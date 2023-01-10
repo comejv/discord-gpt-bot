@@ -22,13 +22,13 @@ jobs:
         go-version: 1.19
 
     - name: Build
-      run: go build -o ./gpt-bot -v ./...
+      run: env GOOS=linux GOARCH=abd64 go build -o ./gpt-bot_amd64 -v ./...
 
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v3.1.2
       with:
-        name: gpt-bot
-        path: ./gpt-bot
+        name: gpt-bot_amd64
+        path: ./gpt-bot_amd64
 
     - name: release
       uses: actions/create-release@v1
@@ -37,7 +37,7 @@ jobs:
         draft: false
         prerelease: false
         release_name: ${{ steps.version.outputs.version }}
-        tag_name: ${{ github.ref }}
+        tag_name: ${{ contains(github.event.head_commit.message, '[commit var]') }}
         body_path: readme.md
       env:
         GITHUB_TOKEN: ${{ github.token }}
@@ -48,6 +48,6 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./gpt-bot
-        asset_name: gpt-bot
+        asset_path: ./gpt-bot_amd64
+        asset_name: gpt-bot_amd64
         asset_content_type: application/octet-stream
