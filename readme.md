@@ -7,7 +7,7 @@ Discord bot that uses the GPT-3 API to answer questions.
 1. Create a [Discord bot](https://discord.com/developers/applications), invite it to your server and save its token. It must be given the following permissions : `Send Messages`, `Read Messages/View Channels` and `Change Nickname` (permission byte : `67111936`).
 2. Get an API key from [OpenAI](https://beta.openai.com/).
 3. Remove `.dist` from `.env.dist` and fill in the values with your Discord bot token and GPT-3 API key.
-4. Run `go build -o ./bin` to build the bot.
+4. Run `go build -o ./bin` to build the bot or download it from the [releases](https://github.com/comejv/discord-gpt-bot/releases/latest) and place it in a newly created `bin` folder or in the main folder.
 5. Start the bot with `./bin/gptbot`.
 
 ## Usage
