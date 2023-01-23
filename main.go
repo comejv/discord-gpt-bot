@@ -60,7 +60,7 @@ func main() {
 
 	// Check if the bot is running from the main folder or the binaries folder
 	var baseDir string
-	_, err := os.Stat("bin")
+	_, err = os.Stat("bin")
     if os.IsNotExist(err) {
         fmt.Println("No binaries folder found. Switching to main folder.")
 		baseDir = filepath.Dir(execPath) + "/"
