@@ -58,7 +58,15 @@ func main() {
 		panic(err)
 	}
 
-	baseDir := filepath.Dir(execPath) + "/"
+	folderInfo, err := os.Stat("bin")
+    if os.IsNotExist(err) {
+        fmt.Println("No binaries folder found. Switching to main folder.")
+		baseDir := filepath.Dir(execPath) + "/"
+    }
+	else {
+		baseDir := filepath.Dir(filepath.Dir(execPath)) + "/"
+	}
+
 
 	file, err := os.Open(baseDir + ".env")
 	if err != nil {
