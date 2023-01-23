@@ -58,7 +58,7 @@ func main() {
 		panic(err)
 	}
 
-	baseDir := filepath.Dir(filepath.Dir(execPath)) + "/"
+	baseDir := filepath.Dir(execPath) + "/"
 
 	file, err := os.Open(baseDir + ".env")
 	if err != nil {
