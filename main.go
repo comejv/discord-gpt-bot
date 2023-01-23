@@ -62,8 +62,7 @@ func main() {
     if os.IsNotExist(err) {
         fmt.Println("No binaries folder found. Switching to main folder.")
 		baseDir := filepath.Dir(execPath) + "/"
-    }
-	else {
+    } else {
 		baseDir := filepath.Dir(filepath.Dir(execPath)) + "/"
 	}
 
