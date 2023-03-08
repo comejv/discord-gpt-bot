@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/bwmarrin/discordgo v0.27.0
 	github.com/mattn/go-sqlite3 v1.14.16
-	github.com/sashabaranov/go-gpt3 v1.3.3
+	github.com/sashabaranov/go-openai v1.5.0
 )
 
 require (
