@@ -47,6 +47,6 @@
     {
         "name": "dm",
         "regex": "(?i)dm",
-        "context": "Tu es un dungeon master, tu réponds comme un maître du jeu de rôle aux messages. Tu fais jouer des aventures courtes (5 minutes) aux joueurs qui te le demandent."
+        "context": "Tu es un dungeon master, tu réponds comme un maître du jeu de rôle aux messages. Tu fais jouer des aventures courtes (environ 10 interactions) aux joueurs qui te le demandent."
     }
 ]

@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
-	"strings"
 
 	"github.com/bwmarrin/discordgo"
 	_ "github.com/mattn/go-sqlite3"
@@ -206,7 +206,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		// If bot is tagged in the message, do command
 
 		// profile command
-		if regexp.MustCompile(`(?mi)^.*profile`).MatchString(m.Content) {
+		if regexp.MustCompile(`(?mi)profile`).MatchString(m.Content) {
 			// Extract profile name
 			needle := regexp.MustCompile(`(?i)profile\s+(?P<name>\w+)`).FindStringSubmatch(m.Content)
 			changed := false
@@ -242,12 +242,17 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 					fmt.Println("error sending profile not found message:", err)
 				}
 			}
-
 			return
-		}
 
-		// stats command
-		if regexp.MustCompile(`(?i)stats$`).MatchString(m.Content) {
+		} else if regexp.MustCompile(`(?i)clear$`).MatchString(m.Content) {
+			// Delete all messages from user in database
+			clearUserMessages(db, m.Author.ID)
+			_, err = s.ChannelMessageSend(m.ChannelID, "Your messages have been deleted from the database.")
+			if err != nil {
+				fmt.Println("error sending clear message:", err)
+			}
+
+		} else if regexp.MustCompile(`(?i)stats$`).MatchString(m.Content) {
 			// Create a stat message
 			msg := "```\n" + getStats(startTime) + "\n```"
 			// Send a message with the stats
@@ -256,22 +261,21 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				fmt.Println("error sending stats message:", err)
 			}
 			return
-		}
 
-		// help command
-		if regexp.MustCompile(`(?i)help$`).MatchString(m.Content) {
+		} else if regexp.MustCompile(`(?i)help$`).MatchString(m.Content) {
 			// Create a help message
-			msg := "```"
-			msg += "Commands:"
-			msg += "\n@Smartass profile <name>: change the profile"
-			msg += "\n@Smartass stats: show statistics"
-			msg += "\n@Smartass help: show this message"
-			msg += "\n\nProfiles:"
+			msg := "```" +
+				"Commands:" +
+				"\n@bipolarplushie profile <name>: change the profile" +
+				"\n@bipolarplushie stats: show statistics" +
+				"\n@bipolarplushie help: show this message" +
+				"\n@bipolarplushie clear: delete *your* messages from the database" +
+				"\n\nProfiles:"
 			for _, profile := range Profiles {
 				msg += "\n- " + profile.Name + ": " + profile.Regex
 			}
 			msg += "```"
-			// Send a message with the help
+
 			_, err = s.ChannelMessageSend(m.ChannelID, msg)
 			if err != nil {
 				fmt.Println("error sending help message:", err)
@@ -300,7 +304,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 
 	} else if regexp.MustCompile(CurrentProfile.Regex).MatchString(m.Content) {
-		// Update DB
+		// Clear user messages if the last message was sent more than 5 minutes ago
 		if messagesTimeDiff(m.ID, numberMessagesUser(db, m.Author.ID)) > 5*time.Minute {
 			clearUserMessages(db, m.Author.ID)
 		}
