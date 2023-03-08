@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +15,8 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	_ "github.com/mattn/go-sqlite3"
+	openai "github.com/sashabaranov/go-openai"
 )
 
 // Structs
@@ -44,12 +48,16 @@ type last struct {
 }
 
 // Global variables
-var Env env_var
-var Obs stats
-var Profiles []profile
-var CurrentProfile profile
-var LastGuildChan last
-var startTime time.Time
+var (
+	Env            env_var
+	Obs            stats
+	Profiles       []profile
+	CurrentProfile profile
+	LastGuildChan  last
+	db             *sql.DB
+	startTime      time.Time
+	client         *openai.Client
+)
 
 func main() {
 	// Load environment variables
@@ -66,6 +74,7 @@ func main() {
 		baseDir = filepath.Dir(execPath) + "/"
 	}
 
+	// Load config
 	file, err := os.Open(baseDir + ".env")
 	if err != nil {
 		fmt.Println("error opening config file")
@@ -84,6 +93,32 @@ func main() {
 		fmt.Println("error unmarshalling config file")
 		panic(err)
 	}
+
+	// Create/reset database
+	db, err = sql.Open("sqlite3", "file:"+baseDir+"data/database.db?mode=rwc")
+	if err != nil {
+		fmt.Println("error opening/creating database")
+		panic(err)
+	}
+	defer db.Close()
+
+	// Initialize the database
+	// Ask user if they want to reset the database
+	var reset string
+	fmt.Print("Do you want to reset the database? (y/n) ")
+	fmt.Scanln(&reset)
+	if reset == "y" {
+		resetDb(db)
+	}
+
+	err = initDb(db)
+	if err != nil {
+		fmt.Println("error initializing database")
+		panic(err)
+	}
+
+	// Initiate openai client
+	client = openai.NewClient(Env.GptApiKey)
 
 	// Load profiles
 	file, err = os.Open(baseDir + "data/profiles.json")
@@ -168,8 +203,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		LastGuildChan.Channel = m.ChannelID
 		return
 
-	} else if regexp.MustCompile(`^<@!?` + s.State.User.ID + `>`).MatchString(m.Content) {
-		// If bot is tagged at the beginning of the message, do command
+	} else if isMentioned(m.Mentions, s.State.User) {
+		// If bot is tagged in the message, do command
 
 		// profile command
 		if regexp.MustCompile(`(?mi)^.*profile`).MatchString(m.Content) {
@@ -244,19 +279,33 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	// If the message is a reply to the bot, send a completion
-	if m.Message.ReferencedMessage != nil && m.Message.ReferencedMessage.Author.ID == s.State.User.ID {
-		originalMessage, err := s.ChannelMessage(m.Message.ChannelID, m.Message.ReferencedMessage.ID)
+	if m.ReferencedMessage != nil && m.ReferencedMessage.Author.ID == s.State.User.ID {
+		// Update DB
+		if messagesTimeDiff(m.ID, numberMessagesUser(db, m.Author.ID)) > 5*time.Minute {
+			clearUserMessages(db, m.Author.ID)
+		}
+		insertUser(db, m.Author.ID, m.Author.Username)
+		insertMessage(db, m)
+
+		originalMessage, err := s.ChannelMessage(m.ChannelID, m.ReferencedMessage.ID)
 		if err != nil {
 			fmt.Println("error getting original message:", err)
 		}
 
-		err = send_gpt_completion(s, m, originalMessage.Content)
+		err = sendChatCompletion(s, m, originalMessage.Content)
 		if err != nil {
 			fmt.Println("error sending completion:", err)
 		}
 
 	} else if regexp.MustCompile(CurrentProfile.Regex).MatchString(m.Content) {
-		err = send_gpt_completion(s, m, "")
+		// Update DB
+		if messagesTimeDiff(m.ID, numberMessagesUser(db, m.Author.ID)) > 5*time.Minute {
+			clearUserMessages(db, m.Author.ID)
+		}
+		insertUser(db, m.Author.ID, m.Author.Username)
+		insertMessage(db, m)
+
+		err = sendChatCompletion(s, m, "")
 		if err != nil {
 			fmt.Println("error sending completion:", err)
 		}
@@ -264,13 +313,60 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 }
 
-func send_gpt_completion(s *discordgo.Session, m *discordgo.MessageCreate, reply string) error {
+func isMentioned(s []*discordgo.User, u *discordgo.User) bool {
+	for _, m := range s {
+		if m.ID == u.ID {
+			return true
+		}
+	}
+
+	return false
+}
+
+func snowflakeToUnix(s string) time.Time {
+	si, err := strconv.Atoi(s)
+	if err != nil {
+		fmt.Println("error converting snowflake to int:", err)
+		panic(err)
+	}
+	return time.UnixMilli(int64(si>>22 + 1420070400000))
+}
+
+func messagesTimeDiff(m1 string, m2 string) time.Duration {
+	if m1 == "" || m2 == "" {
+		return 0
+	}
+	return snowflakeToUnix(m1).Sub(snowflakeToUnix(m2))
+}
+
+func sendChatCompletion(s *discordgo.Session, m *discordgo.MessageCreate, reply string) error {
 	questionAsked()
 	(*s).ChannelTyping(m.ChannelID)
-	var answer string
 	var err error
 
-	answer, err = GptAnswer(reply, m.Author.Username, m.Content)
+	// Get previous messages
+	messages := getConversations(db, m.Author.ID)
+
+	// Create completion request
+	request := openai.ChatCompletionRequest{
+		Model:    openai.GPT3Dot5Turbo,
+		Messages: messages,
+	}
+
+	// Get completion
+	completion, err := client.CreateChatCompletion(
+		context.Background(),
+		request)
+
+	// Update tokens
+	tokenUsed(completion.Usage.TotalTokens)
+
+	// Extract completion
+	answer := completion.Choices[0].Message.Content
+
+	// Update conversation
+	insertAnswer(db, m.ID, answer)
+
 	if err != nil {
 		fmt.Println("error getting completion:", err)
 		return err

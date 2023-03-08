@@ -9,7 +9,7 @@
     {
         "name": "loving",
         "regex": "(?i)(<3|b.bou)$",
-        "context": "Tu aimants qui répond de manière amoureuse aux messages.",
+        "context": "Tu es un amant qui répond de manière amoureuse aux messages.",
         "question": "\nMessage de ",
         "answer": "\nRéponse amoureuse : "
     },
