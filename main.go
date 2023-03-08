@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 	_ "github.com/mattn/go-sqlite3"
@@ -35,11 +36,9 @@ type stats struct {
 }
 
 type profile struct {
-	Name     string `json:"name"`
-	Regex    string `json:"regex"`
-	Context  string `json:"context"`
-	Question string `json:"question"`
-	Answer   string `json:"answer"`
+	Name    string `json:"name"`
+	Regex   string `json:"regex"`
+	Context string `json:"context"`
 }
 
 type last struct {
@@ -102,24 +101,6 @@ func main() {
 	}
 	defer db.Close()
 
-	// Initialize the database
-	// Ask user if they want to reset the database
-	var reset string
-	fmt.Print("Do you want to reset the database? (y/n) ")
-	fmt.Scanln(&reset)
-	if reset == "y" {
-		resetDb(db)
-	}
-
-	err = initDb(db)
-	if err != nil {
-		fmt.Println("error initializing database")
-		panic(err)
-	}
-
-	// Initiate openai client
-	client = openai.NewClient(Env.GptApiKey)
-
 	// Load profiles
 	file, err = os.Open(baseDir + "data/profiles.json")
 	if err != nil {
@@ -142,6 +123,24 @@ func main() {
 
 	// Set the current profile
 	CurrentProfile = Profiles[0]
+
+	// Initialize the database
+	// Ask user if they want to reset the database
+	var reset string
+	fmt.Print("Do you want to reset the database? (y/n) ")
+	fmt.Scanln(&reset)
+	if reset == "y" {
+		resetDb(db)
+	}
+
+	err = initDb(db)
+	if err != nil {
+		fmt.Println("error initializing database")
+		panic(err)
+	}
+
+	// Initiate openai client
+	client = openai.NewClient(Env.GptApiKey)
 
 	// Create a new Discord session using the provided bot token.
 	dg, err := discordgo.New("Bot " + Env.BotToken)
@@ -208,9 +207,12 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 		// profile command
 		if regexp.MustCompile(`(?mi)^.*profile`).MatchString(m.Content) {
-			// Find the profile name
+			// Extract profile name
 			needle := regexp.MustCompile(`(?i)profile\s+(?P<name>\w+)`).FindStringSubmatch(m.Content)
 			changed := false
+
+			// Change string to lowercase
+			needle[1] = strings.ToLower(needle[1])
 
 			// Find the corresponding profile
 			for _, profile := range Profiles {

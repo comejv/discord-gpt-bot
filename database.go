@@ -117,7 +117,7 @@ func getConversations(db *sql.DB, uId string) []openai.ChatCompletionMessage {
 
 	s := openai.ChatCompletionMessage{
 		Role:    "system",
-		Content: "Tu es un bot discord. La personne qui te parle actuellement est " + uNick + ".\n" + CurrentProfile.Context}
+		Content: "Tu es un bot discord. Tu peux utiliser avec escient le markdown discord dans tes réponses. Tu réponds dans la langue de l'utilisateur. La personne qui te parle actuellement est " + uNick + ".\n" + CurrentProfile.Context}
 
 	messages = append(messages, s)
 
